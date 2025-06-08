@@ -23,7 +23,7 @@ app.use(express.json());
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // Limit each IP to 10 requests per windowMs
+  max: 15, // Increased to 15 requests per windowMs for multiple tools
   message: {
     error: 'Too many requests, please try again later.',
     retryAfter: '15 minutes'
@@ -39,6 +39,7 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     endpoints: [
       'POST /api/swot - Generate SWOT analysis',
+      'POST /api/messaging - Generate product messaging framework',
       'POST /api/competitor - Analyze competitors (coming soon)',
       'POST /api/personas - Generate customer personas (coming soon)'
     ]
@@ -109,7 +110,7 @@ Ensure the response is valid JSON only, with no additional text or formatting.`;
 
     // Call OpenAI API
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // More cost-effective than gpt-4
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
@@ -176,7 +177,222 @@ Ensure the response is valid JSON only, with no additional text or formatting.`;
   }
 });
 
-// Future endpoints placeholder
+// Product Messaging Framework endpoint
+app.post('/api/messaging', async (req, res) => {
+  try {
+    const { 
+      company, 
+      product, 
+      targetAudience, 
+      keyFeatures, 
+      competitors, 
+      businessGoals,
+      industry,
+      tonePreference 
+    } = req.body;
+
+    // Validation
+    if (!company || company.trim().length === 0) {
+      return res.status(400).json({
+        error: 'Company name is required'
+      });
+    }
+
+    if (!product || product.trim().length === 0) {
+      return res.status(400).json({
+        error: 'Product/service name is required'
+      });
+    }
+
+    // Create the prompt for OpenAI
+    const prompt = `
+Create a comprehensive product messaging framework for ${company}'s ${product}${industry ? ` in the ${industry} industry` : ''}.
+
+Company Details:
+- Company: ${company}
+- Product/Service: ${product}
+- Target Audience: ${targetAudience || 'Not specified'}
+- Key Features: ${keyFeatures || 'Not specified'}
+- Main Competitors: ${competitors || 'Not specified'}
+- Business Goals: ${businessGoals || 'Not specified'}
+- Preferred Tone: ${tonePreference || 'Professional and engaging'}
+
+Generate a complete messaging framework that includes:
+
+1. Value Proposition (10-15 words, clear and compelling)
+2. Target Audience Profile (brief persona description)
+3. Elevator Pitch (1-2 sentences incorporating value prop)
+4. Long Description (100-200 words with benefits, features, proof points)
+5. Tone of Voice (3-4 adjectives with before/after examples)
+6. Key Outcomes (3-5 bullet points)
+7. Customer Requirements (2-3 crucial conversion factors)
+8. Three Outcome Pillars with detailed breakdowns
+
+Format your response as a JSON object with this exact structure:
+{
+  "company": "${company}",
+  "product": "${product}",
+  "industry": "${industry || 'Not specified'}",
+  "valueProposition": "10-15 word clear value statement",
+  "targetAudience": {
+    "profile": "Brief persona description including personality, responsibilities, title, role in buying process"
+  },
+  "elevatorPitch": "1-2 sentences incorporating value proposition and target market",
+  "longDescription": "100-200 words including value points, features, benefits, target market, proof points",
+  "toneOfVoice": {
+    "adjectives": ["adjective1", "adjective2", "adjective3", "adjective4"],
+    "beforeExample": "Example of how NOT to communicate",
+    "afterExample": "Example of ideal communication style"
+  },
+  "outcomes": [
+    "Specific outcome #1",
+    "Specific outcome #2", 
+    "Specific outcome #3",
+    "Specific outcome #4",
+    "Specific outcome #5"
+  ],
+  "customerRequirements": [
+    "Crucial requirement #1 for conversion",
+    "Crucial requirement #2 for conversion"
+  ],
+  "outcomePillars": [
+    {
+      "pillarName": "Pillar 1 Name",
+      "painPoints": [
+        "Pain point this pillar solves #1",
+        "Pain point this pillar solves #2"
+      ],
+      "benefits": [
+        "Benefit #1",
+        "Benefit #2", 
+        "Benefit #3"
+      ],
+      "featureDetails": [
+        "Feature detail #1",
+        "Feature detail #2",
+        "Feature detail #3"
+      ],
+      "proofPoint": "Real-life case study example showing results"
+    },
+    {
+      "pillarName": "Pillar 2 Name",
+      "painPoints": [
+        "Pain point this pillar solves #1",
+        "Pain point this pillar solves #2"
+      ],
+      "benefits": [
+        "Benefit #1",
+        "Benefit #2",
+        "Benefit #3"
+      ],
+      "featureDetails": [
+        "Feature detail #1", 
+        "Feature detail #2",
+        "Feature detail #3"
+      ],
+      "proofPoint": "Real-life case study example showing results"
+    },
+    {
+      "pillarName": "Pillar 3 Name",
+      "painPoints": [
+        "Pain point this pillar solves #1",
+        "Pain point this pillar solves #2"
+      ],
+      "benefits": [
+        "Benefit #1",
+        "Benefit #2",
+        "Benefit #3"
+      ],
+      "featureDetails": [
+        "Feature detail #1",
+        "Feature detail #2", 
+        "Feature detail #3"
+      ],
+      "proofPoint": "Real-life case study example showing results"
+    }
+  ]
+}
+
+Ensure the response is valid JSON only, with no additional text or formatting. Make the messaging specific, actionable, and tailored to the provided context.`;
+
+    console.log(`Messaging request for: ${company} - ${product}`);
+
+    // Call OpenAI API
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert marketing strategist and copywriter with extensive experience in product positioning, messaging frameworks, and brand communication. Create compelling, strategic messaging that converts prospects into customers."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      max_tokens: 3000, // Increased for comprehensive messaging framework
+      temperature: 0.8, // Slightly higher for more creative messaging
+    });
+
+    const responseText = completion.choices[0].message.content.trim();
+    
+    // Parse the JSON response
+    let messagingFramework;
+    try {
+      messagingFramework = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('JSON parsing error:', parseError);
+      console.error('Raw response:', responseText);
+      
+      // Fallback: try to extract JSON from response
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        messagingFramework = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('Could not parse AI response as JSON');
+      }
+    }
+
+    // Add metadata
+    messagingFramework.metadata = {
+      generatedAt: new Date().toISOString(),
+      model: 'gpt-4o-mini',
+      version: '1.0.0',
+      inputParams: {
+        company,
+        product,
+        targetAudience: targetAudience || null,
+        tonePreference: tonePreference || null
+      }
+    };
+
+    res.json(messagingFramework);
+
+  } catch (error) {
+    console.error('Messaging Framework Error:', error);
+
+    if (error.code === 'insufficient_quota') {
+      return res.status(429).json({
+        error: 'API quota exceeded. Please try again later.',
+        code: 'QUOTA_EXCEEDED'
+      });
+    }
+
+    if (error.code === 'rate_limit_exceeded') {
+      return res.status(429).json({
+        error: 'Rate limit exceeded. Please wait before making another request.',
+        code: 'RATE_LIMITED'
+      });
+    }
+
+    res.status(500).json({
+      error: 'Failed to generate messaging framework. Please try again.',
+      code: 'MESSAGING_FAILED'
+    });
+  }
+});
+
+// Future endpoints
 app.post('/api/competitor', (req, res) => {
   res.status(501).json({
     message: 'Competitor analysis coming soon!',
@@ -197,7 +413,8 @@ app.use('*', (req, res) => {
     error: 'Endpoint not found',
     availableEndpoints: [
       'GET / - API info',
-      'POST /api/swot - SWOT analysis'
+      'POST /api/swot - SWOT analysis',
+      'POST /api/messaging - Product messaging framework'
     ]
   });
 });
@@ -213,7 +430,7 @@ app.use((error, req, res, next) => {
 
 app.listen(PORT, () => {
   console.log(`🚀 Business Tools API running on port ${PORT}`);
-  console.log(`📊 Ready to serve SWOT analyses and more!`);
+  console.log(`📊 Ready to serve SWOT analyses, messaging frameworks, and more!`);
 });
 
 module.exports = app;
